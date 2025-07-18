@@ -1,28 +1,55 @@
 from rest_framework import serializers
-from .models import Property, Booking
+from .models import Property, Booking, Review
 
-# ---------------------------------------------
-# Serializer for the Property model (called "Listing" in the API)
-# ---------------------------------------------
+# ------------------------
+# Listing Serializer
+# ------------------------
+
 class ListingSerializer(serializers.ModelSerializer):
-    """
-    Converts Property model instances to JSON and vice versa.
-    """
+    price_display = serializers.SerializerMethodField()
+
     class Meta:
         model = Property
-        fields = ['id', 'title', 'description', 'location', 'price_per_night']
-        # 'id' is included to identify each listing in API responses
+        fields = ['id', 'title', 'description', 'location', 'price_per_night', 'price_display']
+
+    def get_price_display(self, obj):
+        # Return a formatted price string (e.g., "$150.00 per night")
+        return f"${obj.price_per_night:.2f} per night"
 
 
-# ---------------------------------------------
-# Serializer for the Booking model
-# ---------------------------------------------
+# ------------------------
+# Booking Serializer
+# ------------------------
+
 class BookingSerializer(serializers.ModelSerializer):
-    """
-    Converts Booking model instances to JSON and vice versa.
-    """
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    property_title = serializers.CharField(source='property.title', read_only=True)
+
     class Meta:
         model = Booking
-        fields = ['id', 'user', 'property', 'check_in', 'check_out']
-        # 'user' and 'property' are represented by their IDs by default
-        # If needed, nested serializers can be added to show detailed info
+        fields = ['id', 'user', 'user_email', 'property', 'property_title', 'check_in', 'check_out']
+
+    def validate(self, data):
+        # Ensure check_out is after check_in
+        if data['check_out'] <= data['check_in']:
+            raise serializers.ValidationError("Check-out date must be after check-in date.")
+        return data
+
+
+# ------------------------
+# Review Serializer
+# ------------------------
+
+class ReviewSerializer(serializers.ModelSerializer):
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    property_title = serializers.CharField(source='property.title', read_only=True)
+
+    class Meta:
+        model = Review
+        fields = ['id', 'user', 'user_email', 'property', 'property_title', 'rating', 'comment']
+
+    def validate_rating(self, value):
+        # Ensure rating is between 1 and 5
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
